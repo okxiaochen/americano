@@ -5,6 +5,22 @@
 
 set -e
 
+# Parse command line arguments
+FORCE_OVERWRITE=false
+while [[ $# -gt 0 ]]; do
+    case $1 in
+        -y|--yes)
+            FORCE_OVERWRITE=true
+            shift
+            ;;
+        *)
+            echo "Usage: $0 [-y|--yes]"
+            echo "  -y, --yes    Force overwrite existing installation"
+            exit 1
+            ;;
+    esac
+done
+
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -53,11 +69,22 @@ print_status "Installing americano to $SCRIPT_PATH"
 if [[ -f "$SCRIPT_PATH" ]]; then
     print_warning "americano is already installed at $SCRIPT_PATH"
     echo
-    read -p "Do you want to overwrite the existing installation? (y/N): " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-        print_status "Installation cancelled."
-        exit 0
+    
+    # Check if we're in an interactive terminal or force overwrite is enabled
+    if [[ -t 0 ]] && [[ "$FORCE_OVERWRITE" == "false" ]]; then
+        read -p "Do you want to overwrite the existing installation? (y/N): " -n 1 -r
+        echo
+        if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+            print_status "Installation cancelled."
+            exit 0
+        fi
+    elif [[ "$FORCE_OVERWRITE" == "false" ]]; then
+        print_warning "Running in non-interactive mode. Use -y flag to force overwrite."
+        print_warning "To install interactively, download and run the script directly:"
+        print_warning "  curl -fsSL https://raw.githubusercontent.com/okxiaochen/americano/main/install.sh -o install.sh"
+        print_warning "  chmod +x install.sh"
+        print_warning "  ./install.sh"
+        exit 1
     fi
     print_status "Overwriting existing installation..."
 fi

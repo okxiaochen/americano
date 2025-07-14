@@ -22,9 +22,14 @@ Run the installation script:
 curl -fsSL https://raw.githubusercontent.com/okxiaochen/americano/main/install.sh | bash
 ```
 
+**For non-interactive installation (CI/CD, automation):**
+```bash
+curl -fsSL https://raw.githubusercontent.com/okxiaochen/americano/main/install.sh | bash -s -- -y
+```
+
 The script will:
 - Check if `americano` is already installed
-- Ask for confirmation before overwriting existing installations
+- Ask for confirmation before overwriting existing installations (in interactive mode)
 - Install the script to `/usr/local/bin/americano`
 - Make it executable
 
