@@ -79,8 +79,16 @@ if [[ -f "$SCRIPT_PATH" ]]; then
             exit 0
         fi
     elif [[ "$FORCE_OVERWRITE" == "false" ]]; then
-        print_warning "Running in non-interactive mode. Use -y flag to force overwrite."
-        print_warning "To install interactively, download and run the script directly:"
+        print_warning "Running in non-interactive mode. Choose one of these options:"
+        print_warning ""
+        print_warning "Option 1: Force overwrite with -y flag:"
+        print_warning "  curl -fsSL https://raw.githubusercontent.com/okxiaochen/americano/main/install.sh | bash -s -- -y"
+        print_warning ""
+        print_warning "Option 2: Manually remove existing installation and reinstall:"
+        print_warning "  sudo rm /usr/local/bin/americano"
+        print_warning "  curl -fsSL https://raw.githubusercontent.com/okxiaochen/americano/main/install.sh | bash"
+        print_warning ""
+        print_warning "Option 3: Download and run interactively:"
         print_warning "  curl -fsSL https://raw.githubusercontent.com/okxiaochen/americano/main/install.sh -o install.sh"
         print_warning "  chmod +x install.sh"
         print_warning "  ./install.sh"
