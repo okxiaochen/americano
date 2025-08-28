@@ -1,12 +1,23 @@
 #!/usr/bin/env bash
 
 # americano — prevent macOS from sleeping based on time or process monitoring
-# Usage: americano <time|pid> <value>
+# Usage: americano [-d] <time|pid> <value>
+#   -d             — also prevent display from sleeping (optional)
 #   time <minutes> — prevent sleep for the specified number of minutes
 #   pid  <PID>     — prevent sleep while the specified process is running
 
+# Parse optional flag
+PREVENT_DISPLAY_SLEEP=false
+if [ "$1" == "-d" ]; then
+    PREVENT_DISPLAY_SLEEP=true
+    shift
+fi
+
 if [ "$#" -lt 2 ]; then
-    echo "Usage: $0 <time|pid> <value>"
+    echo "Usage: $0 [-d] <time|pid> <value>"
+    echo "  -d             — also prevent display from sleeping (optional)"
+    echo "  time <minutes> — prevent sleep for the specified number of minutes"
+    echo "  pid  <PID>     — prevent sleep while the specified process is running"
     exit 1
 fi
 
@@ -14,14 +25,21 @@ MODE=$1
 ARG=$2
 CAFFEINATE_PID=""
 
-# Start preventing system sleep (allows display to sleep/lock)
+# Start preventing system sleep
 start_prevent_sleep() {
     # -i: prevent idle sleep
     # -m: prevent disk sleep
     # -s: prevent sleep when connected to power
-    caffeinate -ims &
-    CAFFEINATE_PID=$!
-    echo "▶️ Preventing sleep (caffeinate PID=$CAFFEINATE_PID)"
+    # -d: prevent display sleep (optional)
+    if [ "$PREVENT_DISPLAY_SLEEP" == "true" ]; then
+        caffeinate -imsd &
+        CAFFEINATE_PID=$!
+        echo "▶️ Preventing system and display sleep (caffeinate PID=$CAFFEINATE_PID)"
+    else
+        caffeinate -ims &
+        CAFFEINATE_PID=$!
+        echo "▶️ Preventing system sleep, allowing display sleep (caffeinate PID=$CAFFEINATE_PID)"
+    fi
 }
 
 # Stop preventing system sleep
