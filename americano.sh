@@ -10,21 +10,21 @@
 #                        Can be a PID (number) or process name (searches with pgrep -f)
 #                        If multiple processes match, you'll be prompted to select one
 
-# Parse optional flag
-PREVENT_DISPLAY_SLEEP=false
-if [ "$1" == "-d" ]; then
-    PREVENT_DISPLAY_SLEEP=true
-    shift
-fi
+# GitHub repository URL
+GITHUB_REPO="https://github.com/okxiaochen/americano"
+GITHUB_RAW="https://raw.githubusercontent.com/okxiaochen/americano/main"
 
-# Parse mode and argument
-# Support: time/t <minutes> or pid/p <PID|name> or just <PID|name> (defaults to pid)
-if [ "$#" -lt 1 ]; then
+# Function to display help information
+show_help() {
+    local exit_code=${1:-1}  # Default to exit code 1 (error), unless specified as 0 (success)
     echo "Usage: $0 [-d] [time|t|pid|p] <value>"
     echo "       $0 [-d] <PID|name>              # pid mode (default, can omit 'pid')"
+    echo "       $0 --update                    # Update americano to latest version"
     echo ""
     echo "Options:"
-    echo "  -d             — also prevent display from sleeping (optional)"
+    echo "  -d, --display   — also prevent display from sleeping (optional)"
+    echo "  -u, --update    — update americano to latest version from GitHub"
+    echo "  -h, --help      — show this help message"
     echo ""
     echo "Modes:"
     echo "  time, t <minutes> — prevent sleep for the specified number of minutes"
@@ -41,7 +41,85 @@ if [ "$#" -lt 1 ]; then
     echo "  $0 npm                  # Same as above (pid mode is default)"
     echo "  $0 12345                # Monitor process with PID 12345 (pid mode is default)"
     echo "  $0 -d pid node          # Monitor 'node' process, also prevent display sleep"
-    exit 1
+    echo "  $0 --update             # Update to latest version"
+    echo ""
+    echo "GitHub: $GITHUB_REPO"
+    exit $exit_code
+}
+
+# Check for help flag first
+if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
+    show_help 0  # Exit with success code when explicitly requesting help
+fi
+
+# Check for update flag
+if [ "$1" == "--update" ] || [ "$1" == "-u" ]; then
+    echo "🔄 Updating americano..."
+    
+    # Get the script path (handle symlinks and different systems)
+    if [ -L "$0" ]; then
+        # If script is a symlink, resolve it
+        SCRIPT_PATH=$(readlink "$0" 2>/dev/null || greadlink "$0" 2>/dev/null || echo "$0")
+        # If relative path, make it absolute
+        if [ "${SCRIPT_PATH#/}" = "$SCRIPT_PATH" ]; then
+            SCRIPT_PATH="$(cd "$(dirname "$0")" && pwd)/$SCRIPT_PATH"
+        fi
+    else
+        # Get absolute path
+        SCRIPT_PATH=$(cd "$(dirname "$0")" && pwd)/$(basename "$0")
+    fi
+    
+    if [ ! -f "$SCRIPT_PATH" ]; then
+        echo "❌ Could not determine script location. Please update manually from:"
+        echo "   $GITHUB_REPO"
+        exit 1
+    fi
+    
+    # Download latest version
+    TEMP_FILE=$(mktemp)
+    if curl -fsSL "$GITHUB_RAW/americano.sh" -o "$TEMP_FILE" 2>/dev/null; then
+        # Check if download was successful and not empty
+        if [ -s "$TEMP_FILE" ] && grep -q "americano" "$TEMP_FILE" 2>/dev/null; then
+            # Backup current version
+            cp "$SCRIPT_PATH" "$SCRIPT_PATH.bak" 2>/dev/null || true
+            
+            # Install new version
+            if cp "$TEMP_FILE" "$SCRIPT_PATH" 2>/dev/null || sudo cp "$TEMP_FILE" "$SCRIPT_PATH" 2>/dev/null; then
+                chmod +x "$SCRIPT_PATH" 2>/dev/null || sudo chmod +x "$SCRIPT_PATH" 2>/dev/null
+                rm -f "$TEMP_FILE"
+                echo "✅ americano updated successfully!"
+                echo "   Backup saved to: $SCRIPT_PATH.bak"
+                exit 0
+            else
+                echo "❌ Failed to update. Please run with sudo or update manually from:"
+                echo "   $GITHUB_REPO"
+                rm -f "$TEMP_FILE"
+                exit 1
+            fi
+        else
+            echo "❌ Downloaded file appears to be invalid."
+            rm -f "$TEMP_FILE"
+            exit 1
+        fi
+    else
+        echo "❌ Failed to download update. Please check your internet connection or update manually from:"
+        echo "   $GITHUB_REPO"
+        rm -f "$TEMP_FILE"
+        exit 1
+    fi
+fi
+
+# Parse optional flag
+PREVENT_DISPLAY_SLEEP=false
+if [ "$1" == "-d" ] || [ "$1" == "--display" ]; then
+    PREVENT_DISPLAY_SLEEP=true
+    shift
+fi
+
+# Parse mode and argument
+# Support: time/t <minutes> or pid/p <PID|name> or just <PID|name> (defaults to pid)
+if [ "$#" -lt 1 ]; then
+    show_help
 fi
 
 # Determine mode and argument
