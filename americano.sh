@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 
 # americano — prevent macOS from sleeping based on time or process monitoring
-# Usage: americano [-d] <time|pid> <value>
+# Usage: americano [-d] [time|t|pid|p] <value>
+#        americano [-d] <PID|name>              # pid mode (default)
 #   -d             — also prevent display from sleeping (optional)
-#   time <minutes> — prevent sleep for the specified number of minutes
-#   pid  <PID|name> — prevent sleep while the specified process is running
-#                      Can be a PID (number) or process name (searches with pgrep -f)
-#                      If multiple processes match, you'll be prompted to select one
+#   time, t <minutes> — prevent sleep for the specified number of minutes
+#   pid, p <PID|name> — prevent sleep while the specified process is running
+#   <PID|name>        — defaults to pid mode (can omit 'pid' or 'p')
+#                        Can be a PID (number) or process name (searches with pgrep -f)
+#                        If multiple processes match, you'll be prompted to select one
 
 # Parse optional flag
 PREVENT_DISPLAY_SLEEP=false
@@ -15,28 +17,58 @@ if [ "$1" == "-d" ]; then
     shift
 fi
 
-if [ "$#" -lt 2 ]; then
-    echo "Usage: $0 [-d] <time|pid> <value>"
+# Parse mode and argument
+# Support: time/t <minutes> or pid/p <PID|name> or just <PID|name> (defaults to pid)
+if [ "$#" -lt 1 ]; then
+    echo "Usage: $0 [-d] [time|t|pid|p] <value>"
+    echo "       $0 [-d] <PID|name>              # pid mode (default, can omit 'pid')"
     echo ""
     echo "Options:"
     echo "  -d             — also prevent display from sleeping (optional)"
     echo ""
     echo "Modes:"
-    echo "  time <minutes> — prevent sleep for the specified number of minutes"
-    echo "  pid  <PID|name> — prevent sleep while the specified process is running"
-    echo "                    Can be a PID (number) or process name (searches with pgrep -f)"
-    echo "                    If multiple processes match, you'll be prompted to select one"
+    echo "  time, t <minutes> — prevent sleep for the specified number of minutes"
+    echo "  pid, p <PID|name> — prevent sleep while the specified process is running"
+    echo "                      Can be a PID (number) or process name (searches with pgrep -f)"
+    echo "                      If multiple processes match, you'll be prompted to select one"
+    echo "  <PID|name>        — defaults to pid mode (can omit 'pid' or 'p')"
     echo ""
     echo "Examples:"
     echo "  $0 time 30              # Prevent sleep for 30 minutes"
+    echo "  $0 t 30                 # Same as above (abbreviated)"
     echo "  $0 pid 12345            # Monitor process with PID 12345"
-    echo "  $0 pid npm              # Search for 'npm' processes and select one"
+    echo "  $0 p npm               # Search for 'npm' processes (abbreviated)"
+    echo "  $0 npm                  # Same as above (pid mode is default)"
+    echo "  $0 12345                # Monitor process with PID 12345 (pid mode is default)"
     echo "  $0 -d pid node          # Monitor 'node' process, also prevent display sleep"
     exit 1
 fi
 
-MODE=$1
-ARG=$2
+# Determine mode and argument
+if [ "$#" -eq 1 ]; then
+    # Only one argument - default to pid mode
+    MODE="pid"
+    ARG=$1
+elif [ "$#" -eq 2 ]; then
+    # Two arguments - check if first is a mode keyword
+    case "$1" in
+        time|t)
+            MODE="time"
+            ARG=$2
+            ;;
+        pid|p)
+            MODE="pid"
+            ARG=$2
+            ;;
+        *)
+            echo "Error: Invalid mode '$1'. Use 'time'/'t' or 'pid'/'p', or omit for pid mode." >&2
+            exit 1
+            ;;
+    esac
+else
+    echo "Error: Too many arguments." >&2
+    exit 1
+fi
 CAFFEINATE_PID=""
 
 # Start preventing system sleep

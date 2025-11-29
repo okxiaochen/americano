@@ -16,16 +16,23 @@ A command-line tool for macOS that prevents your computer from sleeping during l
 
 ### Option 1: Automatic Installation (Recommended)
 
-Run the installation script:
+**Interactive installation (recommended for first-time installation):**
+
+Download and run the installation script:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/okxiaochen/americano/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/okxiaochen/americano/main/install.sh -o install.sh
+chmod +x install.sh
+./install.sh
 ```
 
-**For non-interactive installation (CI/CD, automation):**
+**Non-interactive installation (for automation or when overwriting existing installation):**
+
 ```bash
 curl -fsSL https://raw.githubusercontent.com/okxiaochen/americano/main/install.sh | bash -s -- -y
 ```
+
+**Note:** Using `curl ... | bash` directly may not work properly for interactive prompts. For the best experience, download the script first and run it locally.
 
 The script will:
 - Check if `americano` is already installed
@@ -59,6 +66,7 @@ Prevent sleep for a specific number of minutes:
 
 ```bash
 americano time 30
+americano t 30        # Abbreviated form
 ```
 
 This will prevent sleep for 30 minutes, showing countdown messages every minute.
@@ -70,13 +78,17 @@ Prevent sleep while a specific process is running. You can specify either a PID 
 **Using a PID:**
 ```bash
 americano pid 12345
+americano p 12345     # Abbreviated form
+americano 12345       # pid mode is default, can omit 'pid' or 'p'
 ```
 
 **Using a process name (recommended):**
 ```bash
 americano pid npm
-americano pid node
-americano pid python
+americano p npm       # Abbreviated form
+americano npm         # pid mode is default, can omit 'pid' or 'p'
+americano node
+americano python
 ```
 
 When you use a process name, `americano` will:
@@ -141,22 +153,30 @@ pgrep -f node
 ```bash
 # Prevent sleep for 2 hours during a large download
 americano time 120
+americano t 120       # Abbreviated form
 
 # Prevent sleep while a backup process is running (using PID)
 americano pid 9876
+americano 9876        # pid mode is default
 
 # Prevent sleep while npm processes are running (using process name)
 americano pid npm
+americano p npm       # Abbreviated form
+americano npm         # pid mode is default
 
 # Prevent sleep while a specific npm script is running
 # (will show selection menu if multiple npm processes exist)
 americano pid "npm run dev"
+americano "npm run dev"  # pid mode is default
 
 # Prevent sleep for 30 minutes while processing files
 americano time 30
+americano t 30        # Abbreviated form
 
 # Prevent sleep AND display sleep while monitoring a process
 americano -d pid node
+americano -d p node   # Abbreviated form
+americano -d node     # pid mode is default
 ```
 
 ## How it works
