@@ -65,17 +65,47 @@ This will prevent sleep for 30 minutes, showing countdown messages every minute.
 
 ### Process-based Prevention
 
-Prevent sleep while a specific process is running:
+Prevent sleep while a specific process is running. You can specify either a PID (process ID) or a process name:
 
+**Using a PID:**
 ```bash
 americano pid 12345
 ```
 
-This will monitor process ID 12345 and prevent sleep until that process exits.
+**Using a process name (recommended):**
+```bash
+americano pid npm
+americano pid node
+americano pid python
+```
 
-#### Finding Process IDs (PIDs)
+When you use a process name, `americano` will:
+1. Search for processes matching the name using `pgrep -f`
+2. If multiple processes are found, display a numbered list for you to choose from
+3. If only one process is found, automatically select it
+4. Monitor the selected process and prevent sleep until it exits
 
-There are several ways to find the PID of a process you want to monitor:
+**Process Selection Example:**
+
+If you run `americano pid npm` and multiple npm processes are running, you'll see:
+
+```
+⚠️ Found 2 processes matching 'npm':
+
+#   UID  PID    PPID   CPU  STIME    TTY      TIME     COMMAND
+1)  501  28873  64696  0    0:00.05  ttys037  0:00.21  npm run backfill-update-asnote-content
+2)  501  65194  31342  0    0:00.04  ttys012  0:00.12  npm run dev
+
+Select process (1-2) or enter new search term:
+```
+
+You can then:
+- Enter `1` or `2` to select a process from the list
+- Enter a new search term to search again (e.g., `backfill` to narrow down the results)
+
+**Finding Process IDs (PIDs) - Alternative Method:**
+
+If you prefer to find the PID manually, here are some ways:
 
 **Using `ps` command:**
 ```bash
@@ -106,35 +136,27 @@ pgrep -f node
 2. Find your process in the list
 3. The PID is shown in the "PID" column
 
-**Common examples:**
-```bash
-# Monitor a Node.js development server
-pgrep -f "node.*server" | head -1 | xargs americano pid
-
-# Monitor a Python script
-pgrep -f "python.*script.py" | head -1 | xargs americano pid
-
-# Monitor a build process
-pgrep -f "npm.*build" | head -1 | xargs americano pid
-
-# Monitor a backup process
-pgrep -f "rsync" | head -1 | xargs americano pid
-
-# Monitor a download process
-pgrep -f "curl" | head -1 | xargs americano pid
-```
-
 ### Examples
 
 ```bash
 # Prevent sleep for 2 hours during a large download
 americano time 120
 
-# Prevent sleep while a backup process is running
+# Prevent sleep while a backup process is running (using PID)
 americano pid 9876
+
+# Prevent sleep while npm processes are running (using process name)
+americano pid npm
+
+# Prevent sleep while a specific npm script is running
+# (will show selection menu if multiple npm processes exist)
+americano pid "npm run dev"
 
 # Prevent sleep for 30 minutes while processing files
 americano time 30
+
+# Prevent sleep AND display sleep while monitoring a process
+americano -d pid node
 ```
 
 ## How it works

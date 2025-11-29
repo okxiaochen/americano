@@ -4,7 +4,9 @@
 # Usage: americano [-d] <time|pid> <value>
 #   -d             — also prevent display from sleeping (optional)
 #   time <minutes> — prevent sleep for the specified number of minutes
-#   pid  <PID>     — prevent sleep while the specified process is running
+#   pid  <PID|name> — prevent sleep while the specified process is running
+#                      Can be a PID (number) or process name (searches with pgrep -f)
+#                      If multiple processes match, you'll be prompted to select one
 
 # Parse optional flag
 PREVENT_DISPLAY_SLEEP=false
@@ -15,9 +17,21 @@ fi
 
 if [ "$#" -lt 2 ]; then
     echo "Usage: $0 [-d] <time|pid> <value>"
+    echo ""
+    echo "Options:"
     echo "  -d             — also prevent display from sleeping (optional)"
+    echo ""
+    echo "Modes:"
     echo "  time <minutes> — prevent sleep for the specified number of minutes"
-    echo "  pid  <PID>     — prevent sleep while the specified process is running"
+    echo "  pid  <PID|name> — prevent sleep while the specified process is running"
+    echo "                    Can be a PID (number) or process name (searches with pgrep -f)"
+    echo "                    If multiple processes match, you'll be prompted to select one"
+    echo ""
+    echo "Examples:"
+    echo "  $0 time 30              # Prevent sleep for 30 minutes"
+    echo "  $0 pid 12345            # Monitor process with PID 12345"
+    echo "  $0 pid npm              # Search for 'npm' processes and select one"
+    echo "  $0 -d pid node          # Monitor 'node' process, also prevent display sleep"
     exit 1
 fi
 
@@ -67,8 +81,100 @@ get_process_name() {
     ps -p "$PID" -o comm= 2>/dev/null
 }
 
+# Search for processes by name and let user select if multiple found
+# Outputs the selected PID to stdout, error messages to stderr
+search_and_select_process() {
+    local search_term=$1
+    local pids
+    local pid_count
+    local selected_index
+    local i
+    local current_pid
+    local user_input
+    local result
+    
+    pids=$(pgrep -f "$search_term")
+    if [ -z "$pids" ]; then
+        echo "❌ No process found matching '$search_term'" >&2
+        return 1
+    fi
+    
+    # Count processes
+    pid_count=$(echo "$pids" | wc -l | tr -d ' ')
+    
+    if [ "$pid_count" -eq 1 ]; then
+        echo "$pids" | head -n 1
+        return 0
+    fi
+    
+    # Multiple processes found - show list and let user select
+    echo "⚠️ Found $pid_count processes matching '$search_term':" >&2
+    echo "" >&2
+    
+    # Collect all process info for alignment
+    {
+        # Header with "#" column
+        echo "# UID PID PPID C STIME TTY TIME CMD"
+        
+        # Add numbered process lines, getting command as a single field
+        i=1
+        for pid in $pids; do
+            uid=$(ps -p "$pid" -o uid= | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            pid_val=$(ps -p "$pid" -o pid= | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            ppid=$(ps -p "$pid" -o ppid= | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            cpu=$(ps -p "$pid" -o cpu= | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            stime=$(ps -p "$pid" -o stime= | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            tty=$(ps -p "$pid" -o tty= | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            time=$(ps -p "$pid" -o time= | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            cmd=$(ps -p "$pid" -o command= | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+            echo "$i) $uid $pid_val $ppid $cpu $stime $tty $time $cmd"
+            i=$((i + 1))
+        done
+    } | column -t >&2
+    echo "" >&2
+    
+    # Loop until user provides valid input
+    while true; do
+        read -p "Select process (1-$pid_count) or enter new search term: " user_input
+        
+        # Check if input is a number
+        if [[ "$user_input" =~ ^[0-9]+$ ]]; then
+            selected_index=$user_input
+            if [ "$selected_index" -ge 1 ] && [ "$selected_index" -le "$pid_count" ]; then
+                echo "$pids" | sed -n "${selected_index}p"
+                return 0
+            else
+                echo "❌ Invalid selection. Please enter a number between 1 and $pid_count" >&2
+            fi
+        else
+            # User entered a string - search again
+            echo "" >&2
+            echo "🔍 Searching for '$user_input'..." >&2
+            # Recursively search - result goes to stdout, messages to stderr
+            result=$(search_and_select_process "$user_input")
+            exit_code=$?
+            if [ $exit_code -eq 0 ] && [ -n "$result" ]; then
+                echo "$result"
+                return 0
+            else
+                echo "" >&2
+                echo "💡 You can try again or select from the previous list (1-$pid_count)" >&2
+            fi
+        fi
+    done
+}
+
 if [ "$MODE" == "pid" ]; then
-    PID=$ARG
+    # If ARG is not a number, try to find the process by name using pgrep
+    if ! [[ "$ARG" =~ ^[0-9]+$ ]]; then
+        PID=$(search_and_select_process "$ARG")
+        if [ $? -ne 0 ] || [ -z "$PID" ]; then
+            exit 1
+        fi
+    else
+        PID=$ARG
+    fi
+    
     if ! check_process; then
         echo "❌ Process $PID is not running"
         exit 1
