@@ -221,31 +221,38 @@ search_and_select_process() {
     echo "⚠️ Found $pid_count processes matching '$search_term':" >&2
     echo "" >&2
     
-    # Collect all process info for alignment
-    {
-        # Header with "#" column
-        echo "# UID PID PPID C STIME TTY TIME CMD"
+    # Get terminal width for truncation (default 80)
+    local term_width
+    term_width=$(tput cols 2>/dev/null || echo 80)
+    
+    # Display compact process list
+    i=1
+    for pid in $pids; do
+        local pid_val cmd prefix max_cmd_len
+        pid_val=$(ps -p "$pid" -o pid= | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
+        cmd=$(ps -p "$pid" -o command= | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
         
-        # Add numbered process lines, getting command as a single field
-        i=1
-        for pid in $pids; do
-            uid=$(ps -p "$pid" -o uid= | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-            pid_val=$(ps -p "$pid" -o pid= | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-            ppid=$(ps -p "$pid" -o ppid= | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-            cpu=$(ps -p "$pid" -o cpu= | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-            stime=$(ps -p "$pid" -o stime= | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-            tty=$(ps -p "$pid" -o tty= | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-            time=$(ps -p "$pid" -o time= | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-            cmd=$(ps -p "$pid" -o command= | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
-            echo "$i) $uid $pid_val $ppid $cpu $stime $tty $time $cmd"
-            i=$((i + 1))
-        done
-    } | column -t >&2
+        # Format: "  1) [PID 12345] command..."
+        prefix="  $i) [PID $pid_val] "
+        max_cmd_len=$(( term_width - ${#prefix} - 1 ))
+        
+        if [ ${#cmd} -gt $max_cmd_len ] && [ $max_cmd_len -gt 3 ]; then
+            cmd="${cmd:0:$((max_cmd_len - 3))}..."
+        fi
+        
+        echo "${prefix}${cmd}" >&2
+        i=$((i + 1))
+    done
     echo "" >&2
     
     # Loop until user provides valid input
     while true; do
-        read -p "Select process (1-$pid_count) or enter new search term: " user_input
+        read -p "Select process (1-$pid_count) [default: 1] or enter new search term: " user_input
+        
+        # Default to first process if input is empty
+        if [ -z "$user_input" ]; then
+            user_input=1
+        fi
         
         # Check if input is a number
         if [[ "$user_input" =~ ^[0-9]+$ ]]; then
