@@ -221,26 +221,14 @@ search_and_select_process() {
     echo "⚠️ Found $pid_count processes matching '$search_term':" >&2
     echo "" >&2
     
-    # Get terminal width for truncation (default 80)
-    local term_width
-    term_width=$(tput cols 2>/dev/null || echo 80)
-    
     # Display compact process list
     i=1
     for pid in $pids; do
-        local pid_val cmd prefix max_cmd_len
+        local pid_val cmd
         pid_val=$(ps -p "$pid" -o pid= | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
         cmd=$(ps -p "$pid" -o command= | sed 's/^[[:space:]]*//;s/[[:space:]]*$//')
         
-        # Format: "  1) [PID 12345] command..."
-        prefix="  $i) [PID $pid_val] "
-        max_cmd_len=$(( term_width - ${#prefix} - 1 ))
-        
-        if [ ${#cmd} -gt $max_cmd_len ] && [ $max_cmd_len -gt 3 ]; then
-            cmd="${cmd:0:$((max_cmd_len - 3))}..."
-        fi
-        
-        echo "${prefix}${cmd}" >&2
+        echo "  $i) [PID $pid_val] $cmd" >&2
         i=$((i + 1))
     done
     echo "" >&2
