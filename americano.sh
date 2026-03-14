@@ -90,15 +90,11 @@ if [ "$1" == "--update" ] || [ "$1" == "-u" ]; then
     if curl -fsSL "$GITHUB_RAW/americano.sh" -o "$TEMP_FILE" 2>/dev/null; then
         # Check if download was successful and not empty
         if [ -s "$TEMP_FILE" ] && grep -q "americano" "$TEMP_FILE" 2>/dev/null; then
-            # Backup current version
-            cp "$SCRIPT_PATH" "$SCRIPT_PATH.bak" 2>/dev/null || true
-            
             # Install new version
             if cp "$TEMP_FILE" "$SCRIPT_PATH" 2>/dev/null || sudo cp "$TEMP_FILE" "$SCRIPT_PATH" 2>/dev/null; then
                 chmod +x "$SCRIPT_PATH" 2>/dev/null || sudo chmod +x "$SCRIPT_PATH" 2>/dev/null
                 rm -f "$TEMP_FILE"
                 echo "✅ americano updated successfully!"
-                echo "   Backup saved to: $SCRIPT_PATH.bak"
                 exit 0
             else
                 echo "❌ Failed to update. Please run with sudo or update manually from:"
