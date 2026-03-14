@@ -177,6 +177,61 @@ americano t 30        # Abbreviated form
 americano -d pid node
 americano -d p node   # Abbreviated form
 americano -d node     # pid mode is default
+
+# Send a Bark push notification to your iPhone when done
+americano -b YOUR_BARK_KEY time 30
+americano -b YOUR_BARK_KEY pid npm
+
+# Using BARK_KEY env var (set export BARK_KEY=... in your shell profile)
+americano -b time 30
+americano -b pid npm
+
+# Combine display sleep prevention + Bark notification
+americano -d -b time 120
+```
+
+## Push Notifications (Bark)
+
+`americano` can send a push notification to your iPhone when a timer completes or a monitored process exits, using [Bark](https://bark.day.app).
+
+### Setup
+
+1. Install the **Bark** app on your iOS device
+2. Copy your device key from the app
+3. Pass the `-b` / `--bark` flag when you want to receive a notification
+
+Notifications are **opt-in** — they are only sent when you explicitly use the `-b` flag.
+
+**Notification examples (what you'll see on your phone):**
+
+| Scenario | Title | Body |
+|---|---|---|
+| Timer completed | americano ☕ | `30-minute timer completed.` |
+| Process exited | americano ☕ | `Process 'npm' has exited. Total: 2h 30m 15s.` |
+| Custom message (`-m`) | americano ☕ | `Deploy done!` |
+
+### Usage
+
+**Pass the key directly:**
+```bash
+americano -b YOUR_BARK_KEY time 30
+americano -b YOUR_BARK_KEY pid npm
+```
+
+**Or set `BARK_KEY` env var to save typing (recommended):**
+```bash
+# Add to your ~/.zshrc or ~/.bashrc
+export BARK_KEY="YOUR_BARK_KEY"
+
+# Then just pass -b without a key — it reads from the env var
+americano -b time 30
+americano -b pid npm
+```
+
+Flags can be combined in any order:
+```bash
+americano -d -b YOUR_BARK_KEY time 30   # Prevent display sleep + Bark notification
+americano -b -d pid node               # Same, using BARK_KEY env var
 ```
 
 ## How it works

@@ -17,12 +17,15 @@ GITHUB_RAW="https://raw.githubusercontent.com/okxiaochen/americano/main"
 # Function to display help information
 show_help() {
     local exit_code=${1:-1}  # Default to exit code 1 (error), unless specified as 0 (success)
-    echo "Usage: $0 [-d] [time|t|pid|p] <value>"
-    echo "       $0 [-d] <PID|name>              # pid mode (default, can omit 'pid')"
-    echo "       $0 --update                    # Update americano to latest version"
+    echo "Usage: $0 [-d] [-b KEY] [-m MSG] [time|t|pid|p] <value>"
+    echo "       $0 [-d] [-b KEY] [-m MSG] <PID|name>  # pid mode (default, can omit 'pid')"
+    echo "       $0 --update                            # Update americano to latest version"
     echo ""
     echo "Options:"
-    echo "  -d, --display   — also prevent display from sleeping (optional)"
+    echo "  -b, --bark KEY     — send a Bark push notification when done (requires Bark app)"
+    echo "                       KEY can also be provided via BARK_KEY environment variable"
+    echo "  -m, --message MSG  — custom notification body (default: auto-generated)"
+    echo "  -d, --display      — also prevent display from sleeping (optional)"
     echo "  -u, --update    — update americano to latest version from GitHub"
     echo "  -h, --help      — show this help message"
     echo ""
@@ -41,7 +44,14 @@ show_help() {
     echo "  $0 npm                  # Same as above (pid mode is default)"
     echo "  $0 12345                # Monitor process with PID 12345 (pid mode is default)"
     echo "  $0 -d pid node          # Monitor 'node' process, also prevent display sleep"
-    echo "  $0 --update             # Update to latest version"
+    echo "  $0 -b YOURKEY time 30   # Prevent sleep for 30 min, notify via Bark when done"
+    echo "  $0 -b time 30                    # Same, using BARK_KEY env var"
+    echo "  $0 -b -m 'Deploy done!' pid npm  # Custom notification message"
+    echo "  $0 --update                      # Update to latest version"
+    echo ""
+    echo "Bark Push Notifications:"
+    echo "  Get your key from the Bark app (iOS): https://bark.day.app"
+    echo "  Set BARK_KEY in your shell profile so you can use -b without a key argument."
     echo ""
     echo "GitHub: $GITHUB_REPO"
     exit $exit_code
@@ -109,12 +119,46 @@ if [ "$1" == "--update" ] || [ "$1" == "-u" ]; then
     fi
 fi
 
-# Parse optional flag
+# Parse optional flags (can appear in any order before mode)
 PREVENT_DISPLAY_SLEEP=false
-if [ "$1" == "-d" ] || [ "$1" == "--display" ]; then
-    PREVENT_DISPLAY_SLEEP=true
-    shift
-fi
+BARK_ENABLED=false
+BARK_MESSAGE=""
+while true; do
+    case "$1" in
+        -d|--display)
+            PREVENT_DISPLAY_SLEEP=true
+            shift
+            ;;
+        -b|--bark)
+            BARK_ENABLED=true
+            # Next arg is the key, unless it looks like another flag or mode keyword
+            if [ -n "$2" ] && [[ "$2" != -* ]] && [[ "$2" != "time" ]] && [[ "$2" != "t" ]] && [[ "$2" != "pid" ]] && [[ "$2" != "p" ]]; then
+                BARK_KEY="$2"
+                shift 2
+            else
+                # No key argument — require BARK_KEY env var
+                if [ -z "$BARK_KEY" ]; then
+                    echo "Error: --bark requires a device key argument or BARK_KEY environment variable." >&2
+                    exit 1
+                fi
+                shift
+            fi
+            ;;
+        -m|--message)
+            BARK_ENABLED=true
+            # Next arg is the message, unless it looks like another flag or mode keyword
+            if [ -n "$2" ] && [[ "$2" != -* ]] && [[ "$2" != "time" ]] && [[ "$2" != "t" ]] && [[ "$2" != "pid" ]] && [[ "$2" != "p" ]]; then
+                BARK_MESSAGE="$2"
+                shift 2
+            else
+                shift
+            fi
+            ;;
+        *)
+            break
+            ;;
+    esac
+done
 
 # Parse mode and argument
 # Support: time/t <minutes> or pid/p <PID|name> or just <PID|name> (defaults to pid)
@@ -148,6 +192,34 @@ else
     exit 1
 fi
 CAFFEINATE_PID=""
+
+# Format seconds into human-readable duration (e.g. "2h 30m 15s")
+format_duration() {
+    local total_secs=$1
+    local hours=$((total_secs / 3600))
+    local mins=$(((total_secs % 3600) / 60))
+    local secs=$((total_secs % 60))
+    if [ "$hours" -gt 0 ]; then
+        printf "%dh %dm %ds" "$hours" "$mins" "$secs"
+    elif [ "$mins" -gt 0 ]; then
+        printf "%dm %ds" "$mins" "$secs"
+    else
+        printf "%ds" "$secs"
+    fi
+}
+
+# Send a Bark push notification (POST method)
+# Usage: send_bark_notification "default message body"
+send_bark_notification() {
+    local body="${BARK_MESSAGE:-$1}"
+    if [ "$BARK_ENABLED" == "true" ] && [ -n "$BARK_KEY" ]; then
+        curl -s -X POST "https://api.day.app/$BARK_KEY" \
+            -H "Content-Type: application/json; charset=utf-8" \
+            -d "$(printf '{"title":"americano ☕","body":"%s","group":"americano"}' "$body")" \
+            > /dev/null 2>&1 &
+        echo "📱 Bark notification sent"
+    fi
+}
 
 # Start preventing system sleep
 start_prevent_sleep() {
@@ -286,6 +358,7 @@ if [ "$MODE" == "pid" ]; then
     fi
 
     PROC_NAME=$(get_process_name)
+    START_TS=$(date +%s)
     start_prevent_sleep
     echo "🔍 Monitoring process $PID ($PROC_NAME) — preventing sleep"
 
@@ -294,8 +367,11 @@ if [ "$MODE" == "pid" ]; then
         sleep 60
     done
 
-    echo "$(date '+%Y-%m-%d %H:%M:%S') — Process $PID ($PROC_NAME) has exited"
+    ELAPSED=$(( $(date +%s) - START_TS ))
+    DURATION=$(format_duration $ELAPSED)
+    echo "$(date '+%Y-%m-%d %H:%M:%S') — Process $PID ($PROC_NAME) has exited (total: $DURATION)"
     stop_prevent_sleep
+    send_bark_notification \"Process '$ARG' has exited. Total: $DURATION.\"
     echo "💤 System sleep behavior restored"
 
 elif [ "$MODE" == "time" ]; then
@@ -311,6 +387,7 @@ elif [ "$MODE" == "time" ]; then
         if [ "$NOW" -ge "$END_TS" ]; then
             echo "$(date '+%Y-%m-%d %H:%M:%S') — Timer completed"
             stop_prevent_sleep
+            send_bark_notification "$MINUTES-minute timer completed."
             echo "💤 System sleep behavior restored"
             exit 0
         fi
